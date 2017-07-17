@@ -1,0 +1,50 @@
+#include <iostream>
+#include <fstream>
+#include <windows.h>
+#include "opencvref.h"
+
+using std::ifstream;
+using std::ios_base;
+
+void trace( char *s)
+{
+	std::cout << s << std::endl;
+}
+
+/** 
+ * 从图片中读取车牌
+ * @param		file		[in]		文件路径
+ * @param		buffer		[out]		返回识别字符的缓冲区
+ * @param		valen		[in]		缓冲区长度
+ */
+void GetPrFromFile( const char *file, wchar_t *const buffer, int valen)
+{
+	// 加载图片文件
+	cv::Mat src_img = cv::imread(file);
+
+	// 获取图片高宽
+	int img_width = src_img.cols;
+	int img_height = src_img.rows;
+
+	// 像素阵列首地址
+	uchar *pix = src_img.data;
+
+	cv::imshow( "qsh", src_img);
+	cv::waitKey(0);
+	cv::destroyWindow("gsh");
+
+	// 读取图片
+
+	// 编码转换
+
+	// 返回数据
+}
+
+int
+
+int main( int argc, char *argv[])
+{
+	GetPrFromFile("1.jpg", NULL,NULL);
+	system("pause");
+	return 0;
+}

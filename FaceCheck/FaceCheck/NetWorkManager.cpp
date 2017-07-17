@@ -1,0 +1,321 @@
+#include "NetWorkManager.h"
+#include <process.h>
+#include "FaceMessage.h"
+
+CNetWorkManager::CNetWorkManager()
+{
+}
+
+
+CNetWorkManager::~CNetWorkManager()
+{
+}
+
+/**
+* 发送信息
+* 此函数实现客户端数据发送
+* 此函数确保所有信息发送完成
+*/
+int CNetWorkManager::SafeSend(SOCKET sock, const char *buffer, unsigned len)
+{
+	unsigned tmplen = 0;
+	while (tmplen < len)
+	{
+		int err = 0;
+		err = send(sock, buffer + tmplen, len - tmplen, 0);
+		if (SOCKET_ERROR == err)
+		{
+			if (10035 == err)
+			{
+				Sleep(10);
+				continue;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			tmplen += err;
+		}
+
+	}
+
+	return tmplen;
+}
+
+/**
+* 接收
+* 此函数实现客户端数据接收
+* 定长接收，避免沾包
+* 注意，此函数中step 参数不能比缓冲区大。
+* @param			sock			[in]		客户套接字描述符
+* @param			buffer			[in,out]	接收缓冲区
+* @param			buffersize		[in]		接收缓冲区大小
+* @param			step			[in]		定长接收，每次接收的字节数
+*/
+int CNetWorkManager::SafeRecv(SOCKET sock, byte *buffer, int buffersize, int step)
+{
+	// 接收状态标志
+	// 正常时此标志为0
+	// 发生异常时，此标志置-1，此时函数依旧会接收完所有用户数据
+	// 以保证此次接收正常完成，但数据并不写入缓冲区
+	// 函数结束时返回此标志值
+	int _flag = 0; 
+
+	int recvsum = 0;	// 接收计数
+	memset(buffer, 0, buffersize);
+	while (1)
+	{
+		int err;
+		if (0 == _flag)
+		{
+			err = recv(sock, (char *)(buffer + recvsum), step, 0);	// 正常接收
+		}
+		else if( -1 == _flag)
+		{
+			err = recv(sock, (char *)(buffer), buffersize, 0);		// 异常接收
+		}		
+		if (SOCKET_ERROR == err)
+		{
+			err = GetLastError();
+			if (10035 == err)
+			{
+				return _flag;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else if (err > 0)
+		{
+			// trace(buffer + recvsum);
+			recvsum += err;	// 已经接受的字节数
+			if (buffersize - recvsum < step)
+			{
+				// trace("数据包长度超出最大缓冲区， 接收异常");
+				_flag = -1;
+			}
+			continue;
+		}
+	}
+}
+
+/**
+* 客户端接收
+* 此函数负责管理客户端各种类型请求
+*/
+unsigned CNetWorkManager::recv_client(void *accp)
+{
+	CAccepter *paccp = (CAccepter *)accp;
+	CFaceMessage *pmsgparse = (CFaceMessage *)paccp->msgparse;
+
+	timeval tout = { 1, 0 };
+	while (1)
+	{
+		int nIndex = ::WSAWaitForMultipleEvents(1, paccp->m_pevent, TRUE, WSA_INFINITE, FALSE);
+		if (nIndex == WSA_WAIT_FAILED)
+		{
+			// 异常消息处理
+			// trace("客户连接异常");
+		}
+
+		// 提取事件
+		WSANETWORKEVENTS event = { 0 };
+		::WSAEnumNetworkEvents(*(paccp->m_psock), *(paccp->m_pevent), &event);
+
+		if (event.lNetworkEvents & FD_READ)		// 读 事件
+		{
+			if (event.iErrorCode[FD_READ_BIT] == 0)
+			{
+				// 接收
+				Sleep(10);
+				int err = SafeRecv(*(paccp->m_psock), paccp->m_buffer_recv, RECV_BUFFER_SIZE, 1024 * 8);
+				if (0 == err)
+				{
+					// 报文处理
+					pmsgparse->msgparse((char *)paccp->m_buffer_recv, (char *)paccp->m_buffer_send, RECV_BUFFER_SIZE);
+					pmsgparse->msgproc();
+					pmsgparse->msgcreate((char *)paccp->m_buffer_send, SEND_BUFFER_SIZE);
+
+					SafeSend(*(paccp->m_psock), (char *)paccp->m_buffer_send, SEND_BUFFER_SIZE);
+				}
+			}
+			else
+			{
+				// trace("接受异常");
+			}
+		}
+		else if (event.lNetworkEvents & FD_CLOSE)		// 关闭 事件
+		{
+			if (0 == event.iErrorCode[FD_CLOSE_BIT] ||
+				10053 == event.iErrorCode[FD_CLOSE_BIT])
+			{
+				// trace("客户端断开连接"); 
+				return 0;
+			}
+		}
+
+		continue;
+	}
+
+	return 0;
+
+}
+
+/**
+* 客户连接管理
+* 此函数负责创建、配置、启动客户连接
+*/
+void CNetWorkManager::MangerClient(void *pclient)
+{
+	CSockStack *client = (CSockStack *)pclient;
+
+	// 创建和配置客户连接套接字
+	SOCKET sock_client = accept(client->m_sock_server, NULL, NULL);
+	WSAEVENT event_client = ::WSACreateEvent();
+	::WSAEventSelect(sock_client, event_client, FD_CLOSE | FD_READ); // 注册事件
+
+	client->AddRecord(sock_client, event_client);		// 添加到表中
+
+	// 包装客户对象
+	CAccepter accp;
+	accp.m_psock = &sock_client;
+	accp.m_pevent = &event_client;
+	accp.m_buffer_recv = new byte[RECV_BUFFER_SIZE]();
+	accp.m_buffer_send = new byte[SEND_BUFFER_SIZE]();
+
+	CFaceMessage msgparseobj;		// 报文解析对象；
+	msgparseobj.message_all = (char *)accp.m_buffer_recv;
+
+	accp.msgparse = &msgparseobj;
+
+	// 启动读写线程
+	HANDLE h_recv = (HANDLE)_beginthreadex(NULL, NULL, recv_client, (void *)&accp, NULL, NULL);
+
+	// 等待客户连接结束
+	::WaitForMultipleObjects(1, &h_recv, TRUE, INFINITE);
+	CloseHandle(h_recv);
+
+	// 连接中断，回收资源
+	closesocket(sock_client);
+
+	// 释放客户缓冲区
+	delete[] accp.m_buffer_recv;
+	delete[] accp.m_buffer_send;
+
+	for (unsigned i = 0; i < client->m_uindex; ++i)
+	{
+		if (client->m_socks[i] == sock_client)
+		{
+			client->DeleteRecord(i);		// 从表中删除
+			break;
+		}
+	}
+}
+
+
+/************************************************************************/
+/* 外部调用接口                                                           */
+/* 这些接口用于给外部调用来启动和停止服务                                     */
+/************************************************************************/
+
+/**
+ * 启动整个network服务
+ */
+int CNetWorkManager::startnetwork()
+{
+
+	// 套接字初始化
+	WSADATA			wsd;
+	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
+	{
+		// trace("winsocket 初始化失败!");
+		return -1;
+	}
+
+	// 创建服务器套接字
+	SOCKET sock_server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (INVALID_SOCKET == sock_server)
+	{
+		// trace("服务器套接字创建失败!" );
+		WSACleanup();// 释放套接字资源;  
+		return  -1;
+	}
+
+	// 服务器套接字地址配置
+	SOCKADDR_IN		addr_server;
+	addr_server.sin_family = AF_INET;
+	addr_server.sin_port = htons(6000);
+	addr_server.sin_addr.s_addr = INADDR_ANY;
+
+	// 将地址端口信息绑定到服务器套接字
+	int err = bind(sock_server, (LPSOCKADDR)&addr_server, sizeof(SOCKADDR_IN));
+	if (SOCKET_ERROR == err)
+	{
+		// trace("服务器套接字地址端口绑定失败!");
+		closesocket(sock_server);
+		WSACleanup();
+		return -1;
+	}
+
+	// 监听服务器套接字 
+	err = listen(sock_server, 5);
+	if (SOCKET_ERROR == err)
+	{
+		// trace( "服务器套接字监听失败!" );
+		closesocket(sock_server);
+		WSACleanup();
+		return -1;
+	}
+
+	// 指定工作方式
+	WSAEVENT event_server = ::WSACreateEvent();
+	err = WSAEventSelect(sock_server, event_server, FD_ACCEPT | FD_CLOSE);
+	if (SOCKET_ERROR == err)
+	{
+		// trace("异步配置失败");
+		closesocket(sock_server);
+		WSACleanup();
+		return -1;
+	}
+
+	CSockStack clients; // 创建套接字管理栈
+	clients.m_sock_server = sock_server;
+
+	// 启动服务循环
+	while (1)
+	{
+		// 等待服务器套接字事件
+		int nIndex = ::WSAWaitForMultipleEvents(1, &event_server, TRUE, WSA_INFINITE, FALSE);
+		if (nIndex == WSA_WAIT_FAILED)
+		{
+			// 异常消息处理
+			continue;
+		}
+
+		// 提取事件
+		WSANETWORKEVENTS event;
+		::WSAEnumNetworkEvents(sock_server, event_server, &event);
+
+		if (event.lNetworkEvents & FD_ACCEPT)		// accept 事件
+		{
+			if (event.iErrorCode[FD_ACCEPT_BIT] == 0)
+			{
+				if (clients.m_uindex > WSA_MAXIMUM_WAIT_EVENTS - 1)
+				{
+					// trace("太多连接!");
+					continue;
+				}
+
+				// 创建客户管理线程
+				// trace("客户端建立连接");
+				_beginthread(&MangerClient, NULL, (void *)&clients);
+			}
+		}
+		
+	}
+}
+

@@ -1,0 +1,137 @@
+#include <windows.h>
+#include <string.h>
+#include "ichap07.h"
+#include "SeetaFace.h"
+void InsertData();
+void compares();
+
+int main(int argc, char *argv[])
+{
+	::CoInitialize(NULL);
+	compares();
+	// InsertData();
+	system("pause");
+
+	::CoUninitialize();
+	return 0;
+}
+
+/**
+ * 添加模板
+ */
+void InsertData()
+{
+	CSeetaFace sf;
+	IFaceDBOS *iface = NULL;
+	HRESULT hr = CoCreateInstance(CLSID_HykSqliteSys,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		__uuidof(iface),
+		(void **)&iface);
+
+	if (SUCCEEDED(hr))
+	{
+		// 识别对象
+		float *feat = NULL;
+		const char *img_path_format = "img/%d.jpg";
+		char img_path_buffer[32] = { 0 };
+		UserInfo user = { 0 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			feat = sf.NewFeatureBuffer();
+
+			// 提取面部特征
+			memset(img_path_buffer, 0, sizeof img_path_buffer);
+			sprintf_s(img_path_buffer, sizeof img_path_buffer, img_path_format, i+1); // 构造图片路径
+			sf.GetFeature(img_path_buffer, feat); // 提取图片特征
+
+			// 构造用户
+			memset(&user, 0, sizeof user);
+			user._id = 2;
+			wchar_t *name = L"覃守海";
+			WideCharToMultiByte(CP_UTF8, NULL, name, -1, (char *)user._name, sizeof user._name, NULL, NULL);
+			wchar_t *gender = L"男";
+			WideCharToMultiByte(CP_UTF8, NULL, gender, -1, (char *)user._gender, sizeof user._gender, NULL, NULL);
+			int vt = sf.GetFeatureDims();
+			user._feat_len = vt * 4;
+			user._feats = (unsigned char*)feat;
+
+			hr = iface->InserData(&user, i+9); // 插入数据库
+
+		}
+		
+		iface->Release();
+	}
+}
+
+/**
+ * 
+ */
+void compares()
+{
+	CSeetaFace sf;
+
+	// 识别对象
+	float *feat = NULL;
+	feat = sf.NewFeatureBuffer();
+	int vt = sf.GetFeatureDims();
+	sf.GetFeature("img/9.jpg", feat);
+
+	IFaceDBOS *iface = NULL;
+	HRESULT hr = CoCreateInstance(CLSID_HykSqliteSys,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		__uuidof(iface),
+		(void **)&iface);
+
+	if (SUCCEEDED(hr))
+	{
+		iface->LoadData();
+		UserInfos *p_users = NULL;
+		iface->QueryFace( &p_users);
+
+		float result = 0.0f;
+		float match_tmp = 0.0f; // 匹配度缓冲
+
+		int i_tmp = 0; // 索引缓冲
+		for (int i = 0; i < p_users->sum_users; i++)
+		{
+			match_tmp = sf.FeatureCompare((float *)p_users->first_user[i]->_feats, feat);
+			
+			if (0.8f < match_tmp)
+			{
+				result = match_tmp;
+				i_tmp = i;
+				break;			// 若检测到0.8 以上匹配，直接命中
+			}
+
+			if( 0.65f > match_tmp)
+				continue;		// 匹配在0.6 以下，直接跳过
+
+			if (result < match_tmp)
+			{
+				result = match_tmp;
+				i_tmp = i;
+			}
+
+		}
+
+		if (0.65f > result)
+		{
+			// 用户不存在
+			std::cout << "未能识别" << std::endl;
+		}
+		else
+		{
+			wchar_t name[8] = { 0 };
+			MultiByteToWideChar(CP_UTF8, NULL, (char*)p_users->first_user[i_tmp]->_name, -1, name, 7);
+			
+			char str_name[16] = { 0 };
+			WideCharToMultiByte(CP_ACP, NULL, name, -1, str_name, 15, NULL,NULL);
+			std::cout << "照片中的人是： " << str_name << std::endl;
+		}
+
+		iface->Release();
+	}
+}

@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="数据库">
+      <UniqueIdentifier>{333c7a9b-08be-4303-abc0-6973a971c474}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="网络服务">
+      <UniqueIdentifier>{fd2b9446-f29a-455b-a6b9-0b5001a6ee98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="人脸检测">
+      <UniqueIdentifier>{83bf2bb4-5286-49fa-a9eb-e3f395f8c103}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="报文解析">
+      <UniqueIdentifier>{157656e8-6bfa-4eb6-848a-56659d9549f2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Detector.cpp">
+      <Filter>人脸检测</Filter>
+    </ClCompile>
+    <ClCompile Include="SeetaFace.cpp">
+      <Filter>人脸检测</Filter>
+    </ClCompile>
+    <ClCompile Include="dbclass\SqliteAccess.cpp">
+      <Filter>数据库</Filter>
+    </ClCompile>
+    <ClCompile Include="SockStack.cpp">
+      <Filter>网络服务</Filter>
+    </ClCompile>
+    <ClCompile Include="FaceMessage.cpp">
+      <Filter>报文解析</Filter>
+    </ClCompile>
+    <ClCompile Include="NetWorkManager.cpp">
+      <Filter>网络服务</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Detector.h">
+      <Filter>人脸检测</Filter>
+    </ClInclude>
+    <ClInclude Include="SeetaFace.h">
+      <Filter>人脸检测</Filter>
+    </ClInclude>
+    <ClInclude Include="dbclass\sqlite3.h">
+      <Filter>数据库</Filter>
+    </ClInclude>
+    <ClInclude Include="dbclass\SqliteAccess.h">
+      <Filter>数据库</Filter>
+    </ClInclude>
+    <ClInclude Include="SockStack.h">
+      <Filter>网络服务</Filter>
+    </ClInclude>
+    <ClInclude Include="tinystr.h">
+      <Filter>报文解析</Filter>
+    </ClInclude>
+    <ClInclude Include="tinyxml.h">
+      <Filter>报文解析</Filter>
+    </ClInclude>
+    <ClInclude Include="FaceMessage.h">
+      <Filter>报文解析</Filter>
+    </ClInclude>
+    <ClInclude Include="NetWorkManager.h">
+      <Filter>网络服务</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

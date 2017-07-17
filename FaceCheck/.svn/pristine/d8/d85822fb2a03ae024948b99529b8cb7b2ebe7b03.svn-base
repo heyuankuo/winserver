@@ -1,0 +1,382 @@
+//#include <windows.h>
+#include <iostream>
+#include <vector>
+#include <process.h>
+#include "winsock2.h"
+#include "Accepter.h"
+#include "SockStack.h"
+#include "FaceMessage.h"
+#include "ichap07.h"
+#include "SeetaFace.h"
+#pragma comment(lib, "ws2_32.lib")
+
+using std::cout;
+using std::endl;
+
+IFaceDBOS *iface = NULL;
+
+void trace(char *s)
+{
+	cout << s << endl;
+}
+
+/**
+ * @param		str_name			[out]		返回用户信息的缓冲区
+ * @param		buffer_len			[in]		缓冲区长度
+ * @param		img_name			[in]		图片文件名
+ */
+void compares(char const *str_name, unsigned buffer_len, const char *img_name);
+
+/**
+* 发送信息
+* 此函数确保所有信息发送完成
+*/
+int SafeSend(SOCKET sock, const char *buffer, unsigned len)
+{
+	unsigned tmplen = 0;
+	while (tmplen < len)
+	{
+		int err = 0;
+		err = send(sock, buffer + tmplen, len - tmplen, 0);
+		if (SOCKET_ERROR == err)
+		{
+			if (10035 == err)
+			{
+				Sleep(10);
+				continue;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			tmplen += err;
+		}
+
+	}
+
+	return tmplen;
+}
+
+/**
+ * 接收控制
+ * 定长接收，避免沾包
+ */
+int SafeRecv( SOCKET sock, char *buffer, unsigned sum  )
+{
+	int recvsum = 0;
+	while ( 1 )
+	{
+		int err = recv(sock, buffer + recvsum, sum, 0);
+		if (SOCKET_ERROR == err)
+		{
+			err = GetLastError();
+			if (10035 == err)
+			{
+				return 0;
+			}
+			else
+			{
+				return -1;
+				trace("接收异常");
+			}
+		}
+		else if (err > 0)
+		{
+			// trace(buffer + recvsum);
+			recvsum += err;			
+			continue;
+		}
+	}
+}
+
+/**
+ * 
+ */
+unsigned  __stdcall recv_client(void *accp)
+{
+	CAccepter *paccp = (CAccepter *)accp;
+	CFaceMessage facemsg; //配置初始化函数
+	timeval tout = { 1, 0};
+	while (1)
+	{
+		int nIndex = ::WSAWaitForMultipleEvents(1, paccp->m_pevent, TRUE, WSA_INFINITE, FALSE);
+		if (nIndex == WSA_WAIT_FAILED)
+		{
+			// 异常消息处理
+			trace("客户连接异常");
+		}
+
+		// 提取事件
+		WSANETWORKEVENTS event = { 0 };
+		::WSAEnumNetworkEvents(*(paccp->m_psock), *(paccp->m_pevent), &event);
+
+		if (event.lNetworkEvents & FD_READ )		// 读 事件
+		{
+			if (event.iErrorCode[FD_READ_BIT] == 0)
+			{
+			
+				memset(facemsg.message_all, 0, sizeof facemsg.message_all);
+				int recvsum = 0;
+
+				Sleep(5);
+				SafeRecv(*(paccp->m_psock), facemsg.message_all, 1024 * 8);
+
+				if (NULL == strlen(facemsg.message_all))
+				{
+					continue;
+				}
+				facemsg.ParseMsgHead();		// 解析文件头
+				facemsg.ParseClientXml();	// 解析XML
+
+				// 生成文件名
+				const char *file_name_format = "%lf.jpg";		
+				srand((unsigned)time(NULL));//
+				float file_num = rand() % 100;
+				char file_name[16] = { 0 };
+				sprintf_s( file_name, sizeof file_name, file_name_format, file_num);
+
+				facemsg.GetMsgImg(file_name);		// 解析像素阵列
+
+				
+
+				// 对比图像
+				char str_name[16] = { 0 };
+				compares(str_name, sizeof str_name - 1, file_name);
+				if (NULL == strlen(str_name))
+				{
+					strcpy_s(str_name, sizeof str_name - 1, "用户未找到");
+				}
+			
+				SafeSend(*(paccp->m_psock), str_name, sizeof str_name);
+
+			}
+			else
+			{
+				trace("接受异常");
+			}
+		}
+		else if (event.lNetworkEvents & FD_CLOSE)		// 关闭 事件
+		{
+			if (0 == event.iErrorCode[FD_CLOSE_BIT] || 
+				10053 == event.iErrorCode[FD_CLOSE_BIT] )
+			{
+				trace("客户端断开连接");
+				return 0;
+			}
+		}
+
+		continue;
+	}
+
+	return 0;
+
+}
+
+/**
+ * 客户连接管理
+ */
+void MangerClient(void *pclient)
+{
+	CSockStack *client = (CSockStack *)pclient;
+
+	// 创建客户
+	SOCKET sock_client = accept(client->m_sock_server, NULL, NULL);
+	WSAEVENT event_client = ::WSACreateEvent();
+	::WSAEventSelect(sock_client, event_client, FD_CLOSE | FD_READ); // 注册事件
+
+	client->AddRecord(sock_client, event_client);		// 添加到表中
+
+	CAccepter accp;
+	accp.m_psock = &sock_client;
+	accp.m_pevent = &event_client;
+
+	// 启动读写线程
+	HANDLE h_recv = (HANDLE)_beginthreadex(NULL, NULL, recv_client, (void *)&accp, NULL, NULL);
+	// _beginthread(	client_send, NULL, (void *)pclient);
+
+	::WaitForMultipleObjects(1, &h_recv, TRUE, INFINITE);
+	CloseHandle(h_recv);
+
+	// 连接中断，回收资源
+	closesocket(sock_client);
+	for (unsigned i = 0; i < client->m_uindex; ++i)
+	{
+		if (client->m_socks[i] == sock_client)
+		{
+			client->DeleteRecord(i);
+			break;
+		}
+	}
+}
+
+int main( int argc, char *argv[])
+{
+	CoInitialize(NULL);
+
+	HRESULT hr = CoCreateInstance(CLSID_HykSqliteSys,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		__uuidof(iface),
+		(void **)&iface);
+
+	if (FAILED(hr))
+	{
+		return 0;
+	}
+
+	iface->LoadData();
+	// 套接字初始化
+	WSADATA			wsd;
+	if (WSAStartup(MAKEWORD(2, 2), &wsd) != 0)
+	{
+		trace("WSAStartup failed!");
+		return 1;
+	}
+
+	// 创建套接字
+	SOCKET sock_server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (INVALID_SOCKET == sock_server)
+	{
+		trace("socket failed!" );
+		WSACleanup();//释放套接字资源;  
+		return  -1;
+	}
+
+	// 服务器套接字地址配置
+	SOCKADDR_IN		addr_server;
+	addr_server.sin_family = AF_INET;
+	addr_server.sin_port = htons(6000);
+	addr_server.sin_addr.s_addr = INADDR_ANY;
+
+	// 绑定套接字
+	int err = bind(sock_server, (LPSOCKADDR)&addr_server, sizeof(SOCKADDR_IN));
+	if (SOCKET_ERROR == err)
+	{
+		trace("bind failed!");
+		closesocket(sock_server);
+		WSACleanup();
+		return -1;
+	}
+
+	// 监听 
+	err = listen(sock_server, 5);
+	if (SOCKET_ERROR == err)
+	{
+		trace( "listen failed!" );
+		closesocket(sock_server);
+		WSACleanup();   
+		return -1;
+	}
+
+	// 指定工作方式
+	WSAEVENT event_server = ::WSACreateEvent();
+	err = WSAEventSelect(sock_server, event_server, FD_ACCEPT | FD_CLOSE);
+	if (SOCKET_ERROR == err)
+	{
+		trace("异步配置失败");
+		closesocket(sock_server);
+		WSACleanup();
+		return -1;
+	}
+
+	CSockStack clients; // 创建套接字管理栈
+	clients.m_sock_server = sock_server;
+
+	// 启动服务循环
+	while (1)
+	{
+		// 等待服务器套接字事件
+		int nIndex = ::WSAWaitForMultipleEvents( 1, &event_server, TRUE, WSA_INFINITE, FALSE);
+		if (nIndex == WSA_WAIT_FAILED )
+		{
+			// 异常消息处理
+			continue;
+		}
+
+		// 提取事件
+		WSANETWORKEVENTS event;
+		::WSAEnumNetworkEvents(sock_server, event_server, &event);
+
+		if (event.lNetworkEvents & FD_ACCEPT)		// accept 事件
+		{
+			if (event.iErrorCode[FD_ACCEPT_BIT] == 0)
+			{
+				if (clients.m_uindex > WSA_MAXIMUM_WAIT_EVENTS - 1)
+				{
+					trace("太多连接!");
+					continue;
+				}
+
+				// 创建客户管理线程
+				trace("客户端建立连接");
+				_beginthread(MangerClient, NULL, (void *)&clients);
+			}
+		}
+		
+	}
+
+	iface->Release();
+	CoUninitialize();
+	return 0;
+}
+
+
+/**
+*
+*/
+void compares(char const *str_name, unsigned buffer_len, const char *img_name)
+{
+	CSeetaFace sf;
+
+	// 识别对象
+	float *feat = NULL;
+	feat = sf.NewFeatureBuffer();
+	int vt = sf.GetFeatureDims();
+	sf.GetFeature(img_name, feat);
+	
+	UserInfos *p_users = NULL;
+	iface->QueryFace(&p_users);
+
+	float result = 0.0f;
+	float match_tmp = 0.0f; // 匹配度缓冲
+
+	int i_tmp = 0; // 索引缓冲
+	for (int i = 0; i < p_users->sum_users; i++)
+	{
+		match_tmp = sf.FeatureCompare((float *)p_users->first_user[i]->_feats, feat);
+
+		if (0.8f < match_tmp)
+		{
+			result = match_tmp;
+			i_tmp = i;
+			break;			// 若检测到0.8 以上匹配，直接命中
+		}
+
+		if (0.60f > match_tmp)
+			continue;		// 匹配在0.6 以下，直接跳过
+
+		if (result < match_tmp)
+		{
+			result = match_tmp;
+			i_tmp = i;
+		}
+
+	}
+
+	if (0.60f > result)
+	{
+		// 用户不存在
+		std::cout << "未能识别" << std::endl;
+	}
+	else
+	{
+		wchar_t name[8] = { 0 };
+		MultiByteToWideChar(CP_UTF8, NULL, (char*)p_users->first_user[i_tmp]->_name, -1, name, 7);
+
+		WideCharToMultiByte(CP_ACP, NULL, name, -1, (char *)str_name, buffer_len, NULL, NULL);
+	}
+
+}

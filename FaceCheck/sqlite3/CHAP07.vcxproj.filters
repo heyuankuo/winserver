@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="组件实现类">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+    </Filter>
+    <Filter Include="注册">
+      <UniqueIdentifier>{9b754ec8-6e73-47b2-b0ad-961ac5d55c56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="类厂">
+      <UniqueIdentifier>{0a8fd7a7-cb50-4cd2-9bc9-607dba84621c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="模块定义&amp;接口定义">
+      <UniqueIdentifier>{ee226086-51f3-4ad3-8f49-bba25d28438b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="聚合支持">
+      <UniqueIdentifier>{74d6090d-b7a8-4736-85ff-bbc6a105af8f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="A.CPP">
+      <Filter>组件实现类</Filter>
+    </ClCompile>
+    <ClCompile Include="REGISTRY.CPP">
+      <Filter>注册</Filter>
+    </ClCompile>
+    <ClCompile Include="SERVER.CPP">
+      <Filter>注册</Filter>
+    </ClCompile>
+    <ClCompile Include="CFACTORY.CPP">
+      <Filter>类厂</Filter>
+    </ClCompile>
+    <ClCompile Include="ichap07.c">
+      <Filter>模块定义&amp;接口定义</Filter>
+    </ClCompile>
+    <ClCompile Include="CUNKNOWN.CPP">
+      <Filter>聚合支持</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="A.H">
+      <Filter>组件实现类</Filter>
+    </ClInclude>
+    <ClInclude Include="REGISTRY.H">
+      <Filter>注册</Filter>
+    </ClInclude>
+    <ClInclude Include="CFACTORY.H">
+      <Filter>类厂</Filter>
+    </ClInclude>
+    <ClInclude Include="ichap07.h">
+      <Filter>模块定义&amp;接口定义</Filter>
+    </ClInclude>
+    <ClInclude Include="CUNKNOWN.H">
+      <Filter>聚合支持</Filter>
+    </ClInclude>
+    <ClInclude Include="sqlite3.h">
+      <Filter>组件实现类</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="CMPNT.DEF">
+      <Filter>模块定义&amp;接口定义</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="CMPNT.idl">
+      <Filter>模块定义&amp;接口定义</Filter>
+    </Midl>
+  </ItemGroup>
+</Project>

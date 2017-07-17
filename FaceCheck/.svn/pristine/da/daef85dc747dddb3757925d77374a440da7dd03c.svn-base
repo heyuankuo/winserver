@@ -1,0 +1,18 @@
+//#include <windows.h>
+#include <iostream>
+#include "FaceMessage.h"
+#include "SeetaFace.h"
+#include "NetWorkManager.h"
+#pragma comment(lib, "ws2_32.lib")
+
+using std::cout;
+using std::endl;
+
+int main( int argc, char *argv[])
+{
+	// Æô¶¯·þÎñ
+	CNetWorkManager netwk;
+	netwk.startnetwork(); 
+
+	return 0;
+}
